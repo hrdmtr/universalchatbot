@@ -24,6 +24,13 @@ export async function GET() {
           select: {
             email: true
           }
+        },
+        apiKey: {
+          select: {
+            id: true,
+            name: true,
+            provider: true
+          }
         }
       },
       orderBy: {
@@ -75,6 +82,13 @@ export async function POST(request: NextRequest) {
         user: {
           select: {
             email: true
+          }
+        },
+        apiKey: {
+          select: {
+            id: true,
+            name: true,
+            provider: true
           }
         }
       }

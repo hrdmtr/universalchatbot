@@ -19,6 +19,7 @@ model User {
   updatedAt DateTime @updatedAt
 
   bots      Bot[]
+  apiKeys   ApiKey[]
 }
 
 model Bot {
@@ -30,4 +31,23 @@ model Bot {
 
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  apiKeyId    String?
+  apiKey      ApiKey?  @relation(fields: [apiKeyId], references: [id], onDelete: SetNull)
+}
+
+model ApiKey {
+  id           String   @id @default(cuid())
+  provider     String
+  name         String
+  encryptedKey String
+  keyPreview   String
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  bots         Bot[]
 }

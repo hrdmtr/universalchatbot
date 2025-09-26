@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 
 interface Bot {
   id: string
@@ -12,6 +13,11 @@ interface Bot {
   user: {
     email: string
   }
+  apiKey?: {
+    id: string
+    name: string
+    provider: string
+  } | null
 }
 
 export default function HomePage() {
@@ -133,6 +139,10 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Screen Name */}
+      <div className="absolute top-4 left-4 text-xs text-gray-400 font-mono">
+        [BOT_LIST]
+      </div>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="flex justify-between items-center mb-8">
@@ -144,6 +154,12 @@ export default function HomePage() {
             >
               新規作成
             </button>
+            <Link
+              href="/settings"
+              className="text-gray-600 hover:text-gray-800"
+            >
+              設定
+            </Link>
             <button
               onClick={handleLogout}
               className="text-gray-600 hover:text-gray-800"
@@ -196,6 +212,18 @@ export default function HomePage() {
                 <div className="text-sm text-gray-500 space-y-1">
                   <div>更新: {formatDate(bot.updatedAt)}</div>
                   <div>作成者: {bot.user.email}</div>
+                  <div className="flex items-center space-x-2">
+                    <span>APIキー:</span>
+                    {bot.apiKey ? (
+                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-green-100 text-green-800">
+                        {bot.apiKey.name} ({bot.apiKey.provider})
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-500">
+                        未設定
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}

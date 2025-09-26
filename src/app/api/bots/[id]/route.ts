@@ -33,6 +33,13 @@ export async function GET(
           select: {
             email: true
           }
+        },
+        apiKey: {
+          select: {
+            id: true,
+            name: true,
+            provider: true
+          }
         }
       }
     })
@@ -60,7 +67,7 @@ export async function PUT(
       return NextResponse.json({ error: '認証が必要です' }, { status: 401 })
     }
 
-    const { name, description } = await request.json()
+    const { name, description, apiKeyId } = await request.json()
 
     if (!name || name.trim().length === 0) {
       return NextResponse.json({ error: 'ボット名を入力してください' }, { status: 400 })
@@ -90,6 +97,7 @@ export async function PUT(
       data: {
         name: name.trim(),
         description: description?.trim() || null,
+        apiKeyId: apiKeyId || null,
       },
       select: {
         id: true,
@@ -100,6 +108,13 @@ export async function PUT(
         user: {
           select: {
             email: true
+          }
+        },
+        apiKey: {
+          select: {
+            id: true,
+            name: true,
+            provider: true
           }
         }
       }

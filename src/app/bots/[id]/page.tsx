@@ -13,6 +13,18 @@ interface Bot {
   user: {
     email: string
   }
+  apiKey?: {
+    id: string
+    name: string
+    provider: string
+  } | null
+}
+
+interface ApiKey {
+  id: string
+  name: string
+  provider: string
+  isActive: boolean
 }
 
 interface BotDetailPageProps {
@@ -25,6 +37,8 @@ export default function BotDetailPage({ params }: BotDetailPageProps) {
   const [editing, setEditing] = useState(false)
   const [editName, setEditName] = useState('')
   const [editDescription, setEditDescription] = useState('')
+  const [editApiKeyId, setEditApiKeyId] = useState('')
+  const [availableApiKeys, setAvailableApiKeys] = useState<ApiKey[]>([])
   const [saveLoading, setSaveLoading] = useState(false)
   const [error, setError] = useState('')
   const router = useRouter()
@@ -37,8 +51,21 @@ export default function BotDetailPage({ params }: BotDetailPageProps) {
   useEffect(() => {
     if (resolvedParams) {
       fetchBot()
+      fetchApiKeys()
     }
   }, [resolvedParams])
+
+  const fetchApiKeys = async () => {
+    try {
+      const response = await fetch('/api/settings/api-keys')
+      if (response.ok) {
+        const data = await response.json()
+        setAvailableApiKeys(data.filter((key: ApiKey) => key.isActive))
+      }
+    } catch (error) {
+      console.error('Error fetching API keys:', error)
+    }
+  }
 
   const fetchBot = async () => {
     if (!resolvedParams) return
@@ -61,6 +88,7 @@ export default function BotDetailPage({ params }: BotDetailPageProps) {
         setBot(data)
         setEditName(data.name)
         setEditDescription(data.description || '')
+        setEditApiKeyId(data.apiKey?.id || '')
       }
     } catch (error) {
       console.error('Error fetching bot:', error)
@@ -85,6 +113,7 @@ export default function BotDetailPage({ params }: BotDetailPageProps) {
         body: JSON.stringify({
           name: editName.trim(),
           description: editDescription.trim() || null,
+          apiKeyId: editApiKeyId || null,
         }),
       })
 
@@ -126,6 +155,10 @@ export default function BotDetailPage({ params }: BotDetailPageProps) {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Screen Name */}
+      <div className="absolute top-4 left-4 text-xs text-gray-400 font-mono">
+        [BOT_DETAIL]
+      </div>
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="flex justify-between items-center mb-8">
@@ -155,6 +188,7 @@ export default function BotDetailPage({ params }: BotDetailPageProps) {
                     setEditing(false)
                     setEditName(bot.name)
                     setEditDescription(bot.description || '')
+                    setEditApiKeyId(bot.apiKey?.id || '')
                     setError('')
                   }}
                   className="px-4 py-2 text-gray-600 hover:text-gray-800"
@@ -204,6 +238,24 @@ export default function BotDetailPage({ params }: BotDetailPageProps) {
                   className="block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 bg-white"
                 />
               </div>
+              <div>
+                <label htmlFor="apiKey" className="block text-sm font-medium text-gray-700 mb-2">
+                  使用するAPIキー（任意）
+                </label>
+                <select
+                  id="apiKey"
+                  value={editApiKeyId}
+                  onChange={(e) => setEditApiKeyId(e.target.value)}
+                  className="block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 bg-white"
+                >
+                  <option value="">APIキーを選択してください</option>
+                  {availableApiKeys.map((apiKey) => (
+                    <option key={apiKey.id} value={apiKey.id}>
+                      {apiKey.name} ({apiKey.provider})
+                    </option>
+                  ))}
+                </select>
+              </div>
               {error && (
                 <div className="text-red-600 text-sm">{error}</div>
               )}
@@ -228,6 +280,9 @@ export default function BotDetailPage({ params }: BotDetailPageProps) {
                   </div>
                   <div>
                     <span className="font-medium">作成者:</span> {bot.user.email}
+                  </div>
+                  <div>
+                    <span className="font-medium">使用APIキー:</span> {bot.apiKey ? `${bot.apiKey.name} (${bot.apiKey.provider})` : '未設定'}
                   </div>
                   <div>
                     <span className="font-medium">ボットID:</span> {bot.id}
