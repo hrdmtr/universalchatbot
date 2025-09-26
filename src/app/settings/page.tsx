@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { KeyIcon, EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline'
+import HamburgerMenu from '@/components/HamburgerMenu'
 
 interface ApiKey {
   id: string
@@ -208,18 +209,21 @@ export default function SettingsPage() {
         {/* Header */}
         <div className="flex justify-between items-center mb-8">
           <div className="flex items-center space-x-4">
-            <Link href="/" className="text-indigo-600 hover:text-indigo-500">
-              ← ボット一覧へ戻る
+            <Link href="/dashboard" className="text-indigo-600 hover:text-indigo-500">
+              ← ダッシュボードへ戻る
             </Link>
             <div className="h-4 w-px bg-gray-300"></div>
             <h1 className="text-3xl font-bold text-gray-900">設定</h1>
           </div>
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md font-medium"
-          >
-            APIキーを追加
-          </button>
+          <div className="flex items-center space-x-4">
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md font-medium"
+            >
+              APIキーを追加
+            </button>
+            <HamburgerMenu currentPage="settings" />
+          </div>
         </div>
 
         {/* API Keys Section */}
