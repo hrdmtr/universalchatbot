@@ -1,14 +1,36 @@
 'use client'
 
+import { useState, useEffect, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
-import { PaperAirplaneIcon, ArrowPathIcon, TrashIcon } from '@heroicons/react/24/outline'
+import ChatMessage from '@/components/chat/ChatMessage'
+import ChatInput from '@/components/chat/ChatInput'
+import ScreenName from '@/components/layout/ScreenName'
+import HamburgerMenu from '@/components/HamburgerMenu'
+import {
+  ArrowLeftIcon,
+  CogIcon,
+  ChatBubbleLeftEllipsisIcon,
+  ExclamationTriangleIcon,
+  TrashIcon
+} from '@heroicons/react/24/outline'
 
 interface Message {
   id: string
-  role: 'user' | 'assistant'
   content: string
+  isUser: boolean
   timestamp: Date
+}
+
+interface Bot {
+  id: string
+  name: string
+  description: string | null
+  apiKey?: {
+    id: string
+    name: string
+    provider: string
+  } | null
 }
 
 interface ChatPageProps {
@@ -16,187 +38,267 @@ interface ChatPageProps {
 }
 
 export default function ChatPage({ params }: ChatPageProps) {
+  const [bot, setBot] = useState<Bot | null>(null)
+  const [messages, setMessages] = useState<Message[]>([])
+  const [loading, setLoading] = useState(true)
+  const [sending, setSending] = useState(false)
+  const [error, setError] = useState('')
   const [resolvedParams, setResolvedParams] = useState<{ id: string } | null>(null)
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '1',
-      role: 'assistant',
-      content: 'こんにちは！何かお手伝いできることはありますか？',
-      timestamp: new Date()
-    }
-  ])
-  const [inputMessage, setInputMessage] = useState('')
-  const [isLoading, setIsLoading] = useState(false)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const router = useRouter()
 
   useEffect(() => {
     params.then(setResolvedParams)
   }, [params])
 
-  const handleSend = () => {
-    if (!inputMessage.trim() || isLoading) return
+  useEffect(() => {
+    if (resolvedParams) {
+      fetchBot()
+    }
+  }, [resolvedParams])
 
-    const newUserMessage: Message = {
+  useEffect(() => {
+    scrollToBottom()
+  }, [messages])
+
+  const fetchBot = async () => {
+    if (!resolvedParams) return
+
+    try {
+      const response = await fetch(`/api/bots/${resolvedParams.id}`)
+
+      if (response.status === 401) {
+        router.push('/login')
+        return
+      }
+
+      if (response.status === 404) {
+        router.push('/dashboard')
+        return
+      }
+
+      if (response.ok) {
+        const data = await response.json()
+        setBot(data)
+
+        // 初期メッセージを追加
+        if (data) {
+          const welcomeMessage: Message = {
+            id: 'welcome',
+            content: `こんにちは！私は${data.name}です。${data.description || 'お手伝いできることがあれば何でもお聞きください。'}`,
+            isUser: false,
+            timestamp: new Date()
+          }
+          setMessages([welcomeMessage])
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching bot:', error)
+      setError('ボット情報の取得に失敗しました')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }
+
+  const handleSendMessage = async (content: string) => {
+    if (!bot || !resolvedParams) return
+
+    const userMessage: Message = {
       id: Date.now().toString(),
-      role: 'user',
-      content: inputMessage.trim(),
+      content,
+      isUser: true,
       timestamp: new Date()
     }
 
-    setMessages(prev => [...prev, newUserMessage])
-    setInputMessage('')
-    setIsLoading(true)
+    setMessages(prev => [...prev, userMessage])
+    setSending(true)
+    setError('')
 
-    // Simulate bot response (will be replaced with actual API call)
-    setTimeout(() => {
-      const botResponse: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: 'これはダミーの応答です。実際のLLM APIとの連携は後で実装されます。',
-        timestamp: new Date()
+    try {
+      const response = await fetch(`/api/bots/${resolvedParams.id}/chat`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: content
+        })
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        const botMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          content: data.message,
+          isUser: false,
+          timestamp: new Date()
+        }
+        setMessages(prev => [...prev, botMessage])
+      } else {
+        setError(data.error || 'メッセージの送信に失敗しました')
       }
-      setMessages(prev => [...prev, botResponse])
-      setIsLoading(false)
-    }, 1000)
-  }
-
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      handleSend()
+    } catch (error) {
+      console.error('Chat error:', error)
+      setError('ネットワークエラーが発生しました')
+    } finally {
+      setSending(false)
     }
   }
 
   const clearChat = () => {
-    setMessages([{
-      id: '1',
-      role: 'assistant',
-      content: 'こんにちは！何かお手伝いできることはありますか？',
+    if (!bot) return
+    const welcomeMessage: Message = {
+      id: 'welcome-new',
+      content: `こんにちは！私は${bot.name}です。${bot.description || 'お手伝いできることがあれば何でもお聞きください。'}`,
+      isUser: false,
       timestamp: new Date()
-    }])
+    }
+    setMessages([welcomeMessage])
+    setError('')
   }
 
-  const formatTime = (timestamp: Date) => {
-    return timestamp.toLocaleTimeString('ja-JP', {
-      hour: '2-digit',
-      minute: '2-digit'
-    })
-  }
-
-  if (!resolvedParams) {
+  if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-lg">読み込み中...</div>
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-lg text-gray-600">読み込み中...</div>
+      </div>
+    )
+  }
+
+  if (!bot) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="text-lg text-gray-600 mb-4">ボットが見つかりません</div>
+          <Link
+            href="/dashboard"
+            className="text-indigo-600 hover:text-indigo-500"
+          >
+            ダッシュボードに戻る
+          </Link>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="flex flex-col h-screen bg-gray-100">
-      {/* Screen Name */}
-      <div className="absolute top-4 left-4 text-xs text-gray-400 font-mono z-50">
-        [CHAT]
-      </div>
+    <div className="h-screen flex flex-col bg-gradient-to-br from-slate-50 to-indigo-50">
+      <ScreenName name="CHAT" />
+
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-4 py-3">
-        <div className="flex justify-between items-center max-w-4xl mx-auto">
-          <div className="flex items-center space-x-4">
-            <Link
-              href={`/bots/${resolvedParams.id}`}
-              className="text-indigo-600 hover:text-indigo-500 text-sm"
-            >
-              ← ボット詳細へ戻る
-            </Link>
-            <div className="h-4 w-px bg-gray-300"></div>
-            <h1 className="text-lg font-semibold text-gray-900">チャット</h1>
+      <div className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
+        <div className="flex items-center space-x-4">
+          <Link
+            href={`/bots/${bot.id}`}
+            className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors"
+          >
+            <ArrowLeftIcon className="h-5 w-5" />
+          </Link>
+
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center">
+              <ChatBubbleLeftEllipsisIcon className="h-6 w-6 text-white" />
+            </div>
+            <div>
+              <h1 className="text-lg font-semibold text-gray-900">{bot.name}</h1>
+              <div className="flex items-center space-x-2">
+                <div className={`w-2 h-2 rounded-full ${bot.apiKey ? 'bg-green-400' : 'bg-red-400'}`} />
+                <span className="text-sm text-gray-500">
+                  {bot.apiKey ? `${bot.apiKey.provider} 接続中` : 'APIキー未設定'}
+                </span>
+              </div>
+            </div>
           </div>
-          <div className="flex items-center space-x-2">
-            <button
-              onClick={clearChat}
-              className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md"
-              title="チャットをクリア"
-            >
-              <TrashIcon className="h-5 w-5" />
-            </button>
-            <Link href="/" className="text-gray-600 hover:text-gray-800 text-sm">
-              ボット一覧
-            </Link>
-          </div>
+        </div>
+
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={clearChat}
+            className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors"
+            title="チャットをクリア"
+          >
+            <TrashIcon className="h-5 w-5" />
+          </button>
+          <Link
+            href={`/bots/${bot.id}`}
+            className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors"
+          >
+            <CogIcon className="h-5 w-5" />
+          </Link>
+          <HamburgerMenu />
         </div>
       </div>
 
-      {/* Chat Messages */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
-          {messages.map((message) => (
-            <div
-              key={message.id}
-              className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-            >
-              <div className={`max-w-xs lg:max-w-2xl px-4 py-2 rounded-lg ${
-                message.role === 'user'
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-white text-gray-900 shadow-sm border border-gray-200'
-              }`}>
-                <div className="text-sm">{message.content}</div>
-                <div className={`text-xs mt-1 ${
-                  message.role === 'user' ? 'text-indigo-200' : 'text-gray-500'
-                }`}>
-                  {formatTime(message.timestamp)}
-                </div>
-              </div>
+      {/* Error Message */}
+      {error && (
+        <div className="bg-red-50 border-l-4 border-red-400 p-4 mx-4 mt-4">
+          <div className="flex">
+            <ExclamationTriangleIcon className="h-5 w-5 text-red-400" />
+            <div className="ml-3">
+              <p className="text-sm text-red-700">{error}</p>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* API Key Warning */}
+      {!bot.apiKey && (
+        <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mx-4 mt-4">
+          <div className="flex">
+            <ExclamationTriangleIcon className="h-5 w-5 text-yellow-400" />
+            <div className="ml-3">
+              <p className="text-sm text-yellow-700">
+                このボットにはAPIキーが設定されていません。
+                <Link href={`/bots/${bot.id}`} className="font-medium underline">
+                  設定から追加してください
+                </Link>
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto px-4 py-6">
+        <div className="max-w-4xl mx-auto space-y-6">
+          {messages.map((message) => (
+            <ChatMessage
+              key={message.id}
+              message={message.content}
+              isUser={message.isUser}
+              timestamp={message.timestamp}
+            />
           ))}
 
-          {/* Loading indicator */}
-          {isLoading && (
-            <div className="flex justify-start">
-              <div className="bg-white text-gray-900 shadow-sm border border-gray-200 max-w-xs lg:max-w-2xl px-4 py-2 rounded-lg">
-                <div className="flex items-center space-x-2">
-                  <ArrowPathIcon className="h-4 w-4 animate-spin" />
-                  <span className="text-sm">回答を生成中...</span>
-                </div>
-              </div>
-            </div>
+          {sending && (
+            <ChatMessage
+              message=""
+              isUser={false}
+              timestamp={new Date()}
+              isTyping={true}
+            />
           )}
         </div>
+        <div ref={messagesEndRef} />
       </div>
 
-      {/* Input Area */}
-      <div className="bg-white border-t border-gray-200 px-4 py-4">
+      {/* Chat Input */}
+      <div className="bg-white border-t border-gray-200">
         <div className="max-w-4xl mx-auto">
-          <div className="flex items-end space-x-3">
-            <div className="flex-1">
-              <textarea
-                value={inputMessage}
-                onChange={(e) => setInputMessage(e.target.value)}
-                onKeyPress={handleKeyPress}
-                placeholder="メッセージを入力してください..."
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 resize-none text-gray-900 bg-white"
-                rows={1}
-                style={{
-                  minHeight: '40px',
-                  maxHeight: '120px',
-                  resize: 'none'
-                }}
-                onInput={(e) => {
-                  const target = e.target as HTMLTextAreaElement
-                  target.style.height = 'auto'
-                  target.style.height = Math.min(target.scrollHeight, 120) + 'px'
-                }}
-              />
-            </div>
-            <button
-              onClick={handleSend}
-              disabled={!inputMessage.trim() || isLoading}
-              className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400 text-white p-2 rounded-lg transition-colors"
-              title="送信"
-            >
-              <PaperAirplaneIcon className="h-5 w-5" />
-            </button>
-          </div>
-          <div className="mt-2 text-xs text-gray-500 text-center">
-            Enterで送信 • Shift+Enterで改行
-          </div>
+          <ChatInput
+            onSendMessage={handleSendMessage}
+            disabled={sending || !bot.apiKey}
+            placeholder={
+              bot.apiKey
+                ? `${bot.name}にメッセージを送信...`
+                : "APIキーが設定されていません"
+            }
+          />
         </div>
       </div>
     </div>
